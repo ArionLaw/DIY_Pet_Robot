@@ -1,37 +1,45 @@
+# for serial communication using Pyserial
 import serial
+# time library for delays
 import time
+import numpy as np
 
-from serial.tools.list_ports import comports
+import serial.tools.list_ports
+
+ports = serial.tools.list_ports.comports()
+serialInst = serial.Serial()
+portsList = []
+
+def formatSerialMsg(message):
+    serialMsg = repr(message)
+    serialMsg = serialMsg.replace('array','').replace(' ','').replace("'",'').strip('()')
+    return serialMsg
 
 
+def sendJointsBySerial(jointsMsg):
+    # joint values np.array format = [q0,q1,q2,q3,q4,q5,q6], size 7, first value is placeholder
+    # convert array to string
+    serialMessage = formatSerialMsg(jointsMsg)
+    print(serialMessage)
 
-for portItem in comports():
-    print(portItem)
+    # write serial message
+    serialInst.write(serialMessage.encode('utf-8'))
 
-    arduinoSerial = serial.Serial(port='COM4',baudrate=9600,timeout=.5)
+    # wait for Arduino to process message
+    time.sleep(0.05)
 
-# check if port is open
-arduinoSerial.is_open
+def openPortForSerial():
+    # printing port information
+    for portItem in ports:
+        portsList.append(str(portItem))
+        print(portItem)
 
-# close port
-arduinoSerial.close()
+    comPortNum = input("Select COM Port for Arduino (format as int only): ")
 
-# type Arduino code and uplode Arduino code
+    for i in range(len(portsList)):
+        if portsList[i].startswith("COM" + str(comPortNum)):
+            comPort = "COM" + str(comPortNum)
 
-# open port
-arduinoSerial.open()
-
-# joint values to send
-joints=[0,90,90,90,90,90,90]
-# convert array to string
-serialMessage = str(joints)
-# write serial message
-arduinoSerial.write(bytes(serialMessage, 'utf-8'))
-
-# wait for Arduino to process message
-time.sleep(0.01)
-# read the message that is available on the Serial port
-readLine = arduinoSerial.readline()
-
-#convert the Byte message to string
-stringLine = readLine.decode("utf-8")
+    serialInst.baudrate = 9600
+    serialInst.port = comPort
+    serialInst.open()

@@ -19,13 +19,14 @@ char receivedChars[numChars];
 char tempChars[numChars];        // temporary array for use when parsing
 int q[7] = {0,90,80,90,80,90,80};
 boolean newData = false;
+boolean randomMotion = false;
 
 //===== Reset Joint Sequence =====
 void reset(){
   q[1] = 90;
   q[2] = 90;
   q[3] = 90;
-  q[4] = 10;
+  q[4] = 20;
   q[5] = 90;
   q[6] = 90; 
   writeToServos(q);
@@ -45,52 +46,53 @@ void setup(){
   pinMode(buttonPin, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   reset();
-  Serial.println("Ready to receive joint values array in square brackets");
+  //Serial.println("Ready to receive joint values array in square brackets");
 }
 
 
 void loop(){
   buttonState = digitalRead(buttonPin);
-  int jointMinLim = 0+20;
-  int jointMaxLim = 180-20;
+  int jointLimBuffer = 20;
+  int jointMinLim = 0+jointLimBuffer;
+  int jointMaxLim = 180-jointLimBuffer;
   if (buttonState == HIGH) {
     reset();
     delay(inputLatency);   
   }
   recvWithStartEndMarkers();
-    if (newData == true) {
-        strcpy(tempChars, receivedChars);
-            // this temporary copy is necessary to protect the original data
-            //   because strtok() used in parseData() replaces the commas with \0
-        parseData();
-        showJointData();
-        newData = false;
-        writeToServos(q);
-    }
-    else if (newData == false) {
-      for(int i = 1; i < 7 ; i++){
-        int a = q[i]-30;
-        int b = q[i]+30;
-        if (q[i]-30 < jointMinLim)
-        {
-          a = jointMinLim;
-        }
-        if (q[i]+30 > jointMaxLim)
-        {
-          b = jointMaxLim;
-        }
-        if (q[2]+30 > 80)
-        {
-          b = 80;
-        }
-        q[i] = random(a,b);
-      }
+  if (newData == true) {
+      strcpy(tempChars, receivedChars);
+          // this temporary copy is necessary to protect the original data
+          //   because strtok() used in parseData() replaces the commas with \0
+      parseData();
+      // showJointData();
+      newData = false;
       writeToServos(q);
-      showJointData();
-      delay(random(200,2000));
+      // send msg "ready for new joint values"
+      // 
+  }
+  else if (newData == false && randomMotion == true) {
+    for(int i = 1; i < 7 ; i++){
+      int a = q[i]-30;
+      int b = q[i]+30;
+      if (q[i]-30 < jointMinLim)
+      {
+        a = jointMinLim;
+      }
+      if (q[i]+30 > jointMaxLim)
+      {
+        b = jointMaxLim;
+      }
+      if (q[2]+30 > 80)
+      {
+        b = 80;
+      }
+      q[i] = random(a,b);
     }
-  
-
+    writeToServos(q);
+    // showJointData();
+    delay(random(200,2000));
+  }
 }
 
 void writeToServos(int q[]) {
@@ -107,14 +109,14 @@ void recvWithStartEndMarkers() {
     static byte ndx = 0;
     char startMarker = '[';
     char endMarker = ']';
-    char rc;
+    char incomingData;
 
-    while (Serial.available() > 0 && newData == false) {
-        rc = Serial.read();
+    if (Serial.available() > 0 && newData == false) {
+        incomingData = Serial.read();
 
         if (recvInProgress == true) {
-            if (rc != endMarker) {
-                receivedChars[ndx] = rc;
+            if (incomingData != endMarker) {
+                receivedChars[ndx] = incomingData;
                 ndx++;
                 if (ndx >= numChars) {
                     ndx = numChars - 1;
@@ -127,8 +129,7 @@ void recvWithStartEndMarkers() {
                 newData = true;
             }
         }
-
-        else if (rc == startMarker) {
+        else if (incomingData == startMarker) {
             recvInProgress = true;
         }
     }
@@ -136,9 +137,12 @@ void recvWithStartEndMarkers() {
 
 void parseData() {      // split the data into its parts
 
-    char * strtokIndx; // this is used by strtok() as an index
+    char* strtokIndx; // this is used by strtok() as an index
  
     strtokIndx = strtok(tempChars, ","); // this continues where the previous call left off
+    
+    q[0] = atoi(strtokIndx);     // convert this part to an integer
+    strtokIndx = strtok(NULL, ","); // this continues where the previous call left off
     q[1] = atoi(strtokIndx);     // convert this part to an integer
     strtokIndx = strtok(NULL, ","); // this continues where the previous call left off
     q[2] = atoi(strtokIndx);     // convert this part to an integer
@@ -156,7 +160,7 @@ void parseData() {      // split the data into its parts
 void showJointData() {
     Serial.println("Joints Array: ");
     Serial.print("[");
-    for(int i = 1; i < 6; i++){
+    for(int i = 0; i < 6; i++){
       Serial.print(q[i]);
       Serial.print(", ");
     }
